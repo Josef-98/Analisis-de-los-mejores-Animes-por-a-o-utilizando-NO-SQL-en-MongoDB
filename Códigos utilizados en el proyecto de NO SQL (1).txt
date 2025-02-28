@@ -1,0 +1,649 @@
+Códigos utilizados en el proyecto de No SQL.
+
+1.	Top 10 animes mejor puntuados: Listar los 10 con mayor "Score" junto con sus géneros y estudios de producción
+
+[
+  {
+    $addFields: { Score: { $toDouble: "$Score" } }
+  },
+  { $sort: { Score: -1 } },
+  { $limit: 10 },
+  {
+    $project: {
+      _id: 0,
+      Name: 1,
+      Score: 1,
+      Genres: 1,
+      Studios: 1
+    }
+  }
+]
+
+
+2. Animes más populares por género: Encontrar los animes con mayor "Popularity" en géneros específicos como "Action" o "Drama".
+
+[
+  { $unwind: "$Genres" },
+  {
+    $group: {
+      _id: "$Genres",
+      MostPopularAnime: { $first: "$$ROOT" }
+    }
+  },
+  { $sort: { _id: 1 } },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      Name: "$MostPopularAnime.Name",
+      Popularity: "$MostPopularAnime.Popularity",
+      Score: "$MostPopularAnime.Score"
+    }
+  }
+]
+
+3. Diferencias y similitudes entre "Rank" y "Popularity": Identificar si hay consistencia entre el ranking y la popularidad. 
+
+[
+  { $unwind: "$Genres" },
+  {
+    $addFields: { Score: { $toDouble: "$Score" } }
+  },
+  {
+    $group: {
+      _id: "$Genres",
+      AverageScore: { $avg: "$Score" },
+      Count: { $sum: 1 }
+    }
+  },
+  { $sort: { AverageScore: -1 } },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      AverageScore: {
+        $round: ["$AverageScore", 2]
+      },
+      Count: 1
+    }
+  }
+]
+
+4. Géneros mejor valorados (promedio de Score por género)
+
+[
+  { $unwind: "$Genres" },
+  {
+    $addFields: { Score: { $toDouble: "$Score" } }
+  },
+  {
+    $group: {
+      _id: "$Genres",
+      AverageScore: { $avg: "$Score" },
+      Count: { $sum: 1 }
+    }
+  },
+  { $sort: { AverageScore: -1 } },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      AverageScore: {
+        $round: ["$AverageScore", 2]
+      },
+      Count: 1
+    }
+  }
+]
+
+
+5. Relación entre género y popularidad
+
+
+[
+  { $unwind: "$Genres" },
+  {
+    $addFields: {
+      Members: { $toInt: "$Members" },
+      Favorites: { $toInt: "$Favorites" }
+    }
+  },
+  {
+    $group: {
+      _id: "$Genres",
+      TotalMembers: { $sum: "$Members" },
+      TotalFavorites: { $sum: "$Favorites" },
+      AverageFavorites: { $avg: "$Favorites" }
+    }
+  },
+  { $sort: { TotalMembers: -1 } },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      TotalMembers: 1,
+      TotalFavorites: 1,
+      AverageFavorites: {
+        $round: ["$AverageFavorites", 2]
+      }
+    }
+  }
+]
+
+
+6. Mejor anime por género
+
+
+[
+  { $unwind: "$Genres" },
+  {
+    $addFields: { Score: { $toDouble: "$Score" } }
+  },
+  { $sort: { Genres: 1, Score: -1 } },
+  {
+    $group: {
+      _id: "$Genres",
+      TopAnime: { $first: "$$ROOT" }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      Name: "$TopAnime.Name",
+      Score: "$TopAnime.Score",
+      Members: "$TopAnime.Members",
+      Popularity: "$TopAnime.Popularity"
+    }
+  }
+]
+
+
+7. Animes maduros por género. 
+
+
+[
+  { $unwind: "$Genres" },
+  {
+    $match: {
+      Rating: { $regex: "R - 17+", $options: "i" }
+    }
+  },
+  {
+    $group: {
+      _id: "$Genres",
+      MatureAnimeCount: { $sum: 1 }
+    }
+  },
+  { $sort: { MatureAnimeCount: -1 } },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      MatureAnimeCount: 1
+    }
+  }
+]
+
+
+8. Estudios más exitosos (con puntajes mayores a 8.5)
+
+
+[
+  {
+    $addFields: { Score: { $toDouble: "$Score" } }
+  },
+  { $match: { Score: { $gte: 8.5 } } },
+  { $unwind: "$Studios" },
+  {
+    $group: {
+      _id: "$Studios",
+      Count: { $sum: 1 },
+      AverageScore: { $avg: "$Score" }
+    }
+  },
+  { $sort: { Count: -1 } },
+  {
+    $project: {
+      _id: 0,
+      Studio: "$_id",
+      Count: 1,
+      AverageScore: {
+        $round: ["$AverageScore", 2]
+      }
+    }
+  }
+]
+
+
+9. Estudios con animes más populares (según Popularity)
+
+
+[
+  {
+    $addFields: {
+      Popularity: { $toInt: "$Popularity" }
+    }
+  },
+  { $match: { Popularity: { $ne: null } } },
+  { $unwind: "$Studios" },
+  {
+    $group: {
+      _id: "$Studios",
+      TopAnime: { $min: "$Popularity" },
+      TopAnimeDetails: { $first: "$$ROOT" }
+    }
+  },
+  { $sort: { TopAnime: 1 } },
+  {
+    $project: {
+      _id: 0,
+      Studio: "$_id",
+      TopAnime: 1,
+      TopAnimeName: "$TopAnimeDetails.Name",
+      TopAnimePopularity:
+        "$TopAnimeDetails.Popularity"
+    }
+  }
+]
+
+
+10. Animes lanzados por año en la última década. 
+
+[
+  {
+    $addFields: {
+      AiredYear: {
+        $let: {
+          vars: {
+            match: {
+              $regexFind: {
+                input: "$Aired",
+                regex: "(\\d{4})"
+              }
+            }
+          },
+          in: {
+            $toInt: {
+              $ifNull: ["$$match.match", 0]
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    $group: {
+      _id: "$AiredYear",
+      Count: { $sum: 1 }
+    }
+  },
+  { $sort: { _id: -1 } }, // Orden descendente
+  {
+    $project: {
+      _id: 0,
+      Year: "$_id",
+      Count: 1
+    }
+  }
+]
+
+
+11. Puntaje promedio de animes por década
+
+[
+  {
+    $addFields: {
+      AiredYear: {
+        $let: {
+          vars: {
+            match: {
+              $regexFind: {
+                input: "$Aired",
+                regex: "(\\d{4})"
+              }
+            }
+          },
+          in: {
+            $toInt: {
+              $ifNull: ["$$match.match", 0]
+            }
+          }
+        }
+      },
+      Score: { $toDouble: "$Score" }
+    }
+  },
+  {
+    $project: {
+      Decade: {
+        $floor: { $divide: ["$AiredYear", 10] }
+      },
+      Score: 1
+    }
+  },
+  {
+    $group: {
+      _id: "$Decade",
+      AverageScore: { $avg: "$Score" }
+    }
+  },
+  { $sort: { _id: -1 } }, // Orden descendente por década
+  {
+    $project: {
+      _id: 0,
+      Decade: { $multiply: ["$_id", 10] },
+      AverageScore: {
+        $round: ["$AverageScore", 2]
+      }
+    }
+  }
+]
+
+
+
+12. Animes lanzados por temporada (primavera, verano, etc.)
+
+[
+  {
+    $addFields: {
+      AiredYear: {
+        $let: {
+          vars: {
+            match: {
+              $regexFind: {
+                input: "$Aired",
+                regex: "(\\d{4})"
+              }
+            }
+          },
+          in: {
+            $toInt: {
+              $ifNull: ["$$match.match", 0]
+            }
+          }
+        }
+      },
+      AiredMonth: {
+        $let: {
+          vars: {
+            match: {
+              $regexFind: {
+                input: "$Aired",
+                regex: "(\\w{3})"
+              }
+            }
+          },
+          in: "$$match.match"
+        }
+      }
+    }
+  },
+  {
+    $addFields: {
+      Season: {
+        $switch: {
+          branches: [
+            {
+              case: {
+                $in: [
+                  "$AiredMonth",
+                  ["Dec", "Jan", "Feb"]
+                ]
+              },
+              then: "Winter"
+            },
+            {
+              case: {
+                $in: [
+                  "$AiredMonth",
+                  ["Mar", "Apr", "May"]
+                ]
+              },
+              then: "Spring"
+            },
+            {
+              case: {
+                $in: [
+                  "$AiredMonth",
+                  ["Jun", "Jul", "Aug"]
+                ]
+              },
+              then: "Summer"
+            },
+            {
+              case: {
+                $in: [
+                  "$AiredMonth",
+                  ["Sep", "Oct", "Nov"]
+                ]
+              },
+              then: "Fall"
+            }
+          ],
+          default: "Unknown"
+        }
+      }
+    }
+  },
+  {
+    $group: {
+      _id: {
+        Year: "$AiredYear",
+        Season: "$Season"
+      },
+      AnimeCount: { $sum: 1 }
+    }
+  },
+  {
+    $sort: { "_id.Year": -1, "_id.Season": 1 }
+  },
+  {
+    $project: {
+      _id: 0,
+      Year: "$_id.Year",
+      Season: "$_id.Season",
+      AnimeCount: 1
+    }
+  }
+]
+
+13. Promedio de duración de episodios por género
+
+
+[
+  {
+    $addFields: {
+      DurationInMinutes: {
+        $cond: {
+          if: {
+            $regexMatch: {
+              input: "$Duration",
+              regex: "min"
+            }
+          },
+          then: {
+            $toInt: {
+              $arrayElemAt: [
+                { $split: ["$Duration", " "] },
+                0
+              ]
+            }
+          },
+          else: {
+            $cond: {
+              if: {
+                $regexMatch: {
+                  input: "$Duration",
+                  regex: "hour"
+                }
+              },
+              then: {
+                $multiply: [
+                  {
+                    $toInt: {
+                      $arrayElemAt: [
+                        {
+                          $split: [
+                            "$Duration",
+                            " "
+                          ]
+                        },
+                        0
+                      ]
+                    }
+                  },
+                  60
+                ]
+              },
+              else: 0
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    $match: {
+      DurationInMinutes: { $gt: 0 }
+    }
+  },
+  {
+    $group: {
+      _id: "$Genres",
+      AverageDuration: {
+        $avg: "$DurationInMinutes"
+      }
+    }
+  },
+  {
+    $sort: { AverageDuration: -1 }
+  },
+  {
+    $project: {
+      _id: 0,
+      Genre: "$_id",
+      AverageDuration: {
+        $round: ["$AverageDuration", 2]
+      }
+    }
+  }
+]
+
+
+14. Animes con más de 500000 de miembros y puntuación baja (por debajo de 6)
+
+
+[
+  {
+    $match: {
+      Members: { $gt: 500000 },
+      Score: { $lt: 6 }
+    }
+  },
+  {
+    $project: {
+      Name: 1,
+      Members: 1,
+      Score: 1
+    }
+  },
+  {
+    $sort: { Members: -1 }
+  },
+  {
+    $limit: 10
+  }
+]
+
+
+15. Calcular el porcentaje de favoritos respecto al número de miembros
+
+[
+  {
+    $match: {
+      Members: { $gt: 0 },
+      Favorites: { $gt: 0 }
+    }
+  },
+  {
+    $project: {
+      Name: 1,
+      Members: 1,
+      Favorites: 1,
+      FavoritePercentage: {
+        $multiply: [
+          { $divide: ["$Favorites", "$Members"] },
+          100
+        ]
+      }
+    }
+  },
+  {
+    $sort: { FavoritePercentage: -1 }
+  },
+  {
+    $limit: 10
+  }
+]
+
+
+16. Animes con comunidades dedicadas (miembros y favoritos altos)
+
+
+[
+  {
+    $match: {
+      Members: { $gt: 500000 },
+      Favorites: { $gt: 100000 }
+    }
+  },
+  {
+    $project: {
+      Name: 1,
+      Members: 1,
+      Favorites: 1
+    }
+  },
+  {
+    $sort: { Favorites: -1 }
+  },
+  {
+    $limit: 10
+  }
+]
+
+
+17. Formato más valorados en la industria
+
+[
+  {
+    $match: {
+      Type: { $in: ["TV", "Movie", "OVA"] },
+      Popularity: { $gt: 0 }
+    }
+  },
+  {
+    $group: {
+      _id: "$Type",
+      AverageScore: { $avg: "$Score" },
+      AveragePopularity: { $avg: "$Popularity" },
+      Count: { $sum: 1 }
+    }
+  },
+  {
+    $sort: { AverageScore: -1 }
+  },
+  {
+    $project: {
+      Type: "$_id",
+      AverageScore: {
+        $round: ["$AverageScore", 2]
+      },
+      AveragePopularity: {
+        $round: ["$AveragePopularity", 2]
+      },
+      Count: 1
+    }
+  }
+]
